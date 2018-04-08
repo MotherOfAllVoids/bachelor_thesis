@@ -1,0 +1,82 @@
+******************************************************************************************************
+* bcve_otfe - On the Fly Encryption of BestCrypt Volume Encryption Volumes                           *
+******************************************************************************************************
+
+What is this?
+--------------
+
+This project is a part of my bachelor thesis in 2017 focused on reverse engineering and security analysis of BCVE. This tool was developed as a proof of concept to verify that BCVE functions as advertised. It might also help people perform rescue decryption of BCVE encrypted volumes if standard BCVE rescue decryption procedures do not work. Last but not least, I hope that my code is much more readable than x86 assembly so that other researchers can figure out how BCVE works from this project. 
+
+This tool allows you to create a block device containing a decrypted BCVE volume. This block device can then be mounted provided your system has the approriate drivers for the filesystem on the volume (if you'd like to work with NTFS volume with read-write support, please take a look at http://www.tuxera.com/community/open-source-ntfs-3g/). 
+
+bcve_otfe runs entirely in userland - this is accomplished by acting as a NBD server. The BUSE project (A block device in userspace - https://github.com/acozzette/BUSE) serves as an abstraction layer so that my code does not have to communicate directly with NBD.
+
+bcve_otfe is intended to work with volumes encrypted with BCVE v3. I cannot guarantee that it works correctly in other versions (any volume encrypted with the LRW mode of operation will definitely not be decrypted correctly). Furthermore, RC6 block cipher is not supported, since it was recently obsoleted in the crypto library used - Botan.
+
+Prerequisites 
+-------------
+
+This tool is meant to run on all Unix-like operating systems that support NBD. It uses the botan-2 cryptographic library (https://botan.randombit.net/) so make sure that you have it installed before trying to build this project. Lastly, the provided Makefile uses g++ and it makes use of some C++11 features. This tool also assumes that it is run on an little-endian with support for unaligned memory access.
+
+Usage
+-------------
+
+Note that in order to be able to use bcve_otfe, you have to first load the NBD kernel module.
+
+You can stop transparent encryption with Control-C. For best results, always dismount the volume (and stop accessing it) before doing so.
+
+Usage: bcve_otfe [<options>] <encrypted_disk> <virtual_device> <rescue_file>
+
+Options:
+-i	Index of the RECOVERY_STRUCT to use. Use this option if there are multiple RECOVERY_STRUCTs protected with the same password.
+-o	Offset in bytes of the start of the encrypted volume within encrypted_disk. Default value is zero.
+-s	Size of the encrypted volume. Defaults to the whole encrypted_disk.
+
+<encrypted_disk>  -  This is a file containing the contents of an encrypted BCVE volume. This can be either a simple file, or another block device such as (/dev/sdb or /dev/sdb1). Note that this file must contain the linear contents of a volume. If the encrypted volume is not a simple volume, you have to create a single file that contains the contents of the encrypted *volume* (for example for spanned volumes, you have to concatenate several files). 
+
+<virtual_device>  -  This is a name of the block device that will contain the decrypted volume. This should be a valid, unused and already existing NBD block device (they are usually named /dev/nbd0 to /dev/nbd/15)
+
+<rescue_file>     -  The rescue file that contains valid recovery information for the encrypted_disk
+
+Examples
+-------------
+
+1.) Basic usage (with FAT volumes)
+> modprobe nbd                                 # Loading the NBD kernel module
+> bcve_otfe /dev/sdc1 /dev/nbd7 rescue.rsc     # Making the decrypted volume available as /dev/nbd7
+> mount -t msdos /dev/nbd7 mountpoint          # Mounting /dev/nbd7
+
+
+2.) Specifying the position of the encrypted volume inside a bigger "file"
+> modprobe nbd                               
+> bcve_otfe /dev/sdc -o 65536 -s 23068672 /dev/nbd7 rescue.rsc     
+> mount -t msdos /dev/nbd7 mountpoint        
+
+3.) Dumping the decrypted volume to a file
+> modprobe nbd                                 
+> bcve_otfe /dev/sdc1 /dev/nbd7 rescue.rsc     
+> dd if=/dev/nbd7 of=vol.dmp bs=1024           # NBD works by default on blocks of 1024B, however it is not necessary to explicitly specify it to dd
+
+4.) Read only mount of NTFS volumes
+> modprobe nbd                     
+> bcve_otfe /dev/sdc1 /dev/nbd7 rescue.rsc
+> mount -t ntfs -o ro /dev/nbd7 mountpoint
+
+5.) Read/Write NTFS volumes (only with NTFS-3G)
+> modprobe nbd                     
+> bcve_otfe /dev/sdc1 /dev/nbd7 rescue.rsc
+> mount -t ntfs-3g /dev/nbd7 mountpoint
+
+6.) Using a specific RECOVERY_STRUCT for decryption
+> modprobe nbd                     
+> bcve_otfe /dev/sdc1 /dev/nbd7 rescue.rsc
+[warning]: Multiple (2) active RECOVERY_STRUCTs are protected with the provided password.
+> bcve_otfe -i 0 /dev/sdc1 /dev/nbd7 rescue.rsc
+> mount -t msdos /dev/nbd7 mountpoint
+
+7.) Mounting a spanned volume
+> modprobe nbd               
+> cat /dev/sdb1 /dev/sdc1 > vol
+> bcve_otfe vol /dev/nbd7 rescue.rsc
+> mount -t msdos /dev/nbd7 mountpoint
+

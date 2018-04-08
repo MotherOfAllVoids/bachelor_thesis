@@ -1,0 +1,38 @@
+******************************************************************************************************
+* rsc_dumper - Dumping BestCrypt Volume Encryption Rescue Files in a Human-Readable Way              *
+******************************************************************************************************
+
+What is this?
+--------------
+
+This project is a part of my bachelor thesis in 2017 focused on reverse engineering and security analysis of BestCrypt Volume Encryption. Originally developed as a testing tool for my personal use, I later decided that I could publish this tool. 
+
+This tool allows you to inspect the contents of a BCVE rescue file - it should be useful both for regular BCVE users and for security researchers studying BCVE.
+
+rsc_dumper is intended to dump rescue files created with BCVE v3. The rescue file format is mostly backwards compatible, so it should work with older versions of BCVE as well. However, rsc_dumper does not support some of the block ciphers and modes of operations used in older versions of BCVE. Furthermore, RC6 block cipher is not supported, since it was recently obsoleted in the crypto library used - Botan.
+
+Prerequisites 
+-------------
+
+This tool is meant to run on all Unix-like operating systems. It uses the botan-2 cryptographic library (https://botan.randombit.net/) so make sure that you have it installed before trying to build this project. Lastly, the provided Makefile uses g++ and it makes use of some C++11 features. This tool also assumes that it is run on a little-endian architecture with support for unaligned memory access.
+
+Usage
+-------------
+
+Usage: rsc_dumper [-v] <rescue_file>
+
+Options:
+-v	If -v is set, rsc_dumper displays all information from the rescue file. Otherwise, only a subset of some more interesting information is shown.
+
+<rescue_file>   A rescue file created by BestCrypt Volume Encryption
+
+Examples
+-------------
+
+> rsc_dumper -v sample_rsc_files/rescue_twofish.rsc
+qweasd12
+qweasd12
+twofishz
+qweasd12
+incorrect_password
+qweasd12
